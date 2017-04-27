@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/go-github/github"
-	"os"
-	"regexp"
-	"strconv"
-	//"golang.org/x/oauth2"
+	"golang.org/x/oauth2"
 	"gopkg.in/urfave/cli.v1"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strconv"
+	"strings"
 )
 
 func extractPullInfo(url string) (string, string, int, error) {
@@ -31,6 +35,21 @@ func validateBranch(branch string) error {
 		return errors.New(fmt.Sprintf("Invalid branch name: %s", branch))
 	}
 	return nil
+}
+
+func homeDir() (string, error) {
+	var homeDir string
+	if runtime.GOOS == "windows" {
+		homeDir = os.Getenv("USERPROFILE")
+	} else {
+		homeDir = os.Getenv("HOME")
+	}
+
+	if _, err := os.Stat(homeDir); err != nil {
+		return "", err
+	}
+
+	return homeDir, nil
 }
 
 func main() {
@@ -60,15 +79,26 @@ func main() {
 					return err
 				}
 
+				home, err := homeDir()
+				if err != nil {
+					return err
+				}
+				tokenPath := filepath.Join(home, ".elastic", "github.token")
+				rawToken, err := ioutil.ReadFile(tokenPath)
+				if err != nil {
+					return err
+				}
+				token := strings.TrimSpace(string(rawToken))
+				if token == "" {
+					return errors.New("No token found")
+				}
+
 				ctx := context.Background()
-				/*
-				   ts := oauth2.StaticTokenSource(
-				     &oauth2.Token{AccessToken: ""},
-				   )
-				   tc := oauth2.NewClient(ctx, ts)
-				   client := github.NewClient(tc)
-				*/
-				client := github.NewClient(nil)
+				ts := oauth2.StaticTokenSource(
+					&oauth2.Token{AccessToken: token},
+				)
+				tc := oauth2.NewClient(ctx, ts)
+				client := github.NewClient(tc)
 				pr, response, err := client.PullRequests.Get(ctx, orgName, repoName, pullNumber)
 				fmt.Printf("%d of %d remaining\n", response.Remaining, response.Limit)
 				if _, ok := err.(*github.RateLimitError); ok {
