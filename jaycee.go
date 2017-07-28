@@ -9,6 +9,7 @@ import (
 	"gopkg.in/urfave/cli.v1"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -50,6 +51,34 @@ func homeDir() (string, error) {
 	}
 
 	return homeDir, nil
+}
+
+func Extend(slice []int, element int) []int {
+  n := len(slice)
+  slice = slice[0 : n+1]
+  slice[n] = element
+  return slice
+}
+
+func execute(cmdArgs ...string) (string, error) {
+	var (
+		err error
+		cmdOut []byte
+	)
+	if cmdOut, err = exec.Command(cmdArgs...).Output(); err != nil {
+		return "", err
+	}
+	return string(cmdOut), nil
+}
+
+func git(cmdArgs ...string) (string, error) {
+	cmdArgs := append([]string{"sh", "-c"}, args...)
+	fmt.Println(cmdArgs)
+	output, err := execute(cmdArgs...)
+	if err != nil {
+		return "", err
+	}
+	return output, nil
 }
 
 func main() {
@@ -109,6 +138,12 @@ func main() {
 					return errors.New("Can not find PR")
 				}
 				fmt.Println(*pr.Title)
+
+				output, err := git("git", "status")
+				if err != nil {
+					return err
+				}
+				fmt.Println(output)
 
 				fmt.Printf("backported %q\n", clictx.Args().Get(0))
 				return nil
